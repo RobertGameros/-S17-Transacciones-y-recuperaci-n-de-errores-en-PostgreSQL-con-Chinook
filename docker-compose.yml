@@ -1,0 +1,17 @@
+services:
+  postgres-chinook:
+    image: postgres:${PG_IMAGE_TAG:-18}
+    container_name: pg18_chinook_s17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-CAMBIAR_PASSWORD_LOCAL}
+      POSTGRES_DB: ${POSTGRES_DB:-chinook}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - pg18_chinook_data:/var/lib/postgresql
+      - ./:/workspace
+
+volumes:
+  pg18_chinook_data:

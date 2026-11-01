@@ -1,0 +1,10 @@
+# Ignorar archivos de credenciales y secretos locales
+.env
+*.env.local
+
+# Archivos temporales y de sistema
+__pycache__/
+*.pyc
+~$*.docx
+.DS_Store
+Thumbs.db
