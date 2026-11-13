@@ -1,6 +1,11 @@
 # [S17] Transacciones y recuperación de errores en PostgreSQL con Chinook
 
-Repositorio de práctica para la evaluación **[S17] Transacciones y recuperación de errores en PostgreSQL con Chinook**. Demuestra el control transaccional explícito en **PostgreSQL 18** sobre el esquema oficial `Chinook_PostgreSql_SerialPKs.sql`, abarcando confirmación atómica (`COMMIT`), reversión completa ante violación de integridad referencial (`ROLLBACK`), recuperación parcial con puntos de salvaguarda (`SAVEPOINT` / `ROLLBACK TO SAVEPOINT`) y visibilidad entre sesiones concurrentes bajo el nivel de aislamiento `Read Committed`.
+* **Estudiante**: Robert Geovanni Barrios Gameros (`2890-24-6773`)
+* **Curso**: Base de Datos 1 — Plan Fin de Semana
+* **Catedrático**: Ing. Yoel Monzón
+* **Universidad**: Universidad Mariano Gálvez de Guatemala — Sede Retalhuleu
+
+Repositorio de práctica para la evaluación **[S17] Transacciones y recuperación de errores en PostgreSQL con Chinook**. Demuestra el control transaccional explícito en **PostgreSQL 18 (`18.6`)** sobre el esquema oficial `Chinook_PostgreSql_SerialPKs.sql`, abarcando confirmación atómica (`COMMIT`), reversión completa ante violación de integridad referencial (`ROLLBACK`), recuperación parcial con puntos de salvaguarda (`SAVEPOINT` / `ROLLBACK TO SAVEPOINT`) y visibilidad entre sesiones concurrentes bajo el nivel de aislamiento `Read Committed`.
 
 ---
 
@@ -8,23 +13,24 @@ Repositorio de práctica para la evaluación **[S17] Transacciones y recuperaci�
 
 | Archivo | Propósito |
 | :--- | :--- |
-| `README.md` | Documentación de entorno, importación, conexiones A/B en DataGrip o `psql`, autocommit, parámetros dinámicos y repetición de pruebas. |
+| `README.md` | Documentación completa de entorno, importación, conexiones A/B en DataGrip o `psql`, autocommit, parámetros dinámicos y repetición de pruebas. |
 | `Chinook_PostgreSql_SerialPKs.sql` | Script oficial del esquema y datos de **Chinook v1.4.5** con claves primarias `SERIAL` (`lerocha/chinook-database`). |
-| `01_venta_exitosa.sql` | **Escenario 1**: Transacción explícita exitosa (`BEGIN ... COMMIT`), inserción de cabecera con `RETURNING`, 3 detalles válidos, cálculo exacto de `total` con `SUM(unit_price * quantity)` y verificación de coherencia. |
-| `02_rollback_total.sql` | **Escenario 2**: Transacción con violación real de `FOREIGN KEY` (`invoice_line_track_id_fkey`), demostración del estado abortado (`25P02`), recuperación con `ROLLBACK` y comprobación por la clave específica de que no quedaron datos huérfanos. |
-| `03_savepoint.sql` | **Escenario 3**: Transacción con 2 detalles válidos iniciales, `SAVEPOINT`, fallo por referencia inválida (`23503`), recuperación parcial con `ROLLBACK TO SAVEPOINT`, inserción de un 3.er detalle corregido, `RELEASE SAVEPOINT`, recálculo de total y `COMMIT`. |
-| `04_validaciones.sql` | **Escenario 4 y Auditoría**: Consultas para la **Sesión B** (independiente de la Sesión A) comprobando visibilidad antes y después del `COMMIT` bajo `Read Committed`, además de auditoría de huecos de secuencias (`invoice_invoice_id_seq` e `invoice_line_invoice_line_id_seq`). |
-| `docker-compose.yml` | Configuración opcional de contenedor **PostgreSQL 18** para levantar un entorno aislado reproducible. |
+| `01_venta_exitosa.sql` | **Escenario 1**: Transacción explícita exitosa (`BEGIN ... COMMIT`), inserción de cabecera con `RETURNING` (`invoice_id = 413`), 3 detalles válidos, cálculo exacto de `total` con `SUM(unit_price * quantity)` (`5.94`) y verificación de coherencia. |
+| `02_rollback_total.sql` | **Escenario 2**: Transacción con violación real de `FOREIGN KEY` (`invoice_line_track_id_fkey`, `track_id = 999999`), demostración del estado abortado (`25P02`), recuperación con `ROLLBACK` y comprobación por la clave específica (`invoice_id = 414`) de que no quedaron datos huérfanos. |
+| `03_savepoint.sql` | **Escenario 3**: Transacción (`invoice_id = 415`) con 2 detalles válidos iniciales (`track_id` 5 y 6), `SAVEPOINT`, fallo por referencia inválida (`track_id = 888888`), recuperación parcial con `ROLLBACK TO SAVEPOINT`, inserción de un 3.er detalle corregido (`track_id = 7`), `RELEASE SAVEPOINT`, recálculo de total (`4.95`) y `COMMIT`. |
+| `04_validaciones.sql` | **Escenario 4 y Auditoría**: Verificación de conexiones independientes (PIDs distintos), prueba de visibilidad en **Sesión B** antes y después del `COMMIT` bajo `Read Committed` (`invoice_id = 416`, `total = 2.97`, y verificación de `413`), y auditoría de huecos de secuencias (`invoice_invoice_id_seq` e `invoice_line_invoice_line_id_seq`). |
+| `docker-compose.yml` | Configuración de contenedor **PostgreSQL 18** (`pg18_chinook_s17`) para levantar un entorno aislado reproducible. |
 | `.env.example` | Plantilla de variables de entorno sin secretos ni contraseñas reales. |
 
 ---
 
 ## 2. Entorno, versión y variante de Chinook
 
-* **Motor de Base de Datos**: `PostgreSQL 18.x` (instalación nativa local o contenedor oficial `postgres:18`).
-* **Cliente SQL**: **JetBrains DataGrip** (dos consolas independientes `Sesión A` y `Sesión B`) o cliente CLI `psql`. Todos los scripts están escritos en **SQL estándar de PostgreSQL**, por lo que se ejecutan directamente en **DataGrip** sin errores de metaórdenes.
-* **Variante del esquema**: Oficial **`Chinook_PostgreSql_SerialPKs.sql`** del repositorio [`lerocha/chinook-database`](https://github.com/lerocha/chinook-database/releases).
-* **Tablas utilizadas**:
+* **Motor de Base de Datos**: `PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2)` ejecutándose en contenedor oficial `postgres:18` (`pg18_chinook_s17`).
+* **Cliente SQL**: **JetBrains DataGrip** (dos consolas independientes `Sesion_A` y `Sesion_B`) o cliente CLI `psql`. Todos los scripts utilizan **SQL estándar de PostgreSQL**, ejecutándose directamente en DataGrip sin errores de metaórdenes.
+* **Variante del esquema**: Oficial **`Chinook_PostgreSql_SerialPKs.sql`** (v1.4.5) del repositorio [`lerocha/chinook-database`](https://github.com/lerocha/chinook-database).
+* **Base de datos de trabajo**: `chinook_serial` (creada por el propio script oficial).
+* **Tablas principales utilizadas**:
   * `customer` (`customer_id` SERIAL PK): 59 clientes originales (`1..59`).
   * `track` (`track_id` SERIAL PK, `unit_price NUMERIC(10,2)`): 3503 canciones originales (`1..3503`).
   * `invoice` (`invoice_id` SERIAL PK, `customer_id` FK, `total NUMERIC(10,2)`): 412 facturas originales (`1..412`).
@@ -38,59 +44,75 @@ Repositorio de práctica para la evaluación **[S17] Transacciones y recuperaci�
 > \c chinook_serial;
 > ```
 > Por tanto:
-> 1. **Elimina y recrea** por completo la base de datos `chinook_serial` si ya existía. No lo ejecute sobre una instancia donde tenga modificaciones que desee conservar.
-> 2. Incluye la metaorden `\c chinook_serial;` propia de `psql`. Si importa desde **DataGrip**, ejecute el script mediante el contenedor con `docker exec -i pg18_chinook_s17 psql -U postgres -d postgres -f /workspace/Chinook_PostgreSql_SerialPKs.sql` (o en `psql` local).
+> 1. **Elimina y recrea** por completo la base de datos `chinook_serial` si ya existía. No lo ejecute sobre datos que deba conservar.
+> 2. Incluye la metaorden `\c chinook_serial;` propia de `psql`. Si utiliza el contenedor del repositorio, impórtelo desde terminal con `psql` para que se ejecute sin errores de sintaxis.
 
 ---
 
-## 3. Configuración de Conexiones A y B, Autocommit y Aislamiento en DataGrip
+## 3. Instalación e importación paso a paso
+
+1. Copie `.env.example` a `.env` y defina credenciales locales de práctica (nunca suba `.env` al repositorio):
+   ```bash
+   cp .env.example .env
+   ```
+2. Levante el contenedor de PostgreSQL 18:
+   ```bash
+   docker compose up -d
+   ```
+3. Importe el script oficial `Chinook_PostgreSql_SerialPKs.sql` dentro del contenedor (sustituya `<USUARIO>` por el definido en su `.env`):
+   ```bash
+   docker exec -i pg18_chinook_s17 psql -U <USUARIO> -d postgres -f /workspace/Chinook_PostgreSql_SerialPKs.sql
+   ```
+4. Verifique la versión del motor y el conteo base:
+   ```sql
+   SELECT version(), current_database(), COUNT(*) AS total_canciones FROM track;
+   ```
+   *(Resultado esperado: `PostgreSQL 18.6 ...`, `chinook_serial`, `total_canciones = 3503`).*
+
+---
+
+## 4. Configuración de Conexiones A y B, Autocommit y Aislamiento en DataGrip
 
 1. **Abrir dos sesiones independientes (A y B)**:
-   * En el panel **Database Explorer** de DataGrip, verifique en las propiedades del Data Source (*Options -> Single session mode*) que la casilla **Single session mode** esté **desmarcada** (valor por defecto). Así cada consola abre su propio proceso backend en PostgreSQL (`pg_backend_pid()` diferente).
-   * Abra o asocie los scripts `01_venta_exitosa.sql`, `02_rollback_total.sql` y `03_savepoint.sql` a la **Consola 1 (Sesión A — Operador Transaccional)**.
-   * Abra o asocie el script `04_validaciones.sql` a una **segunda consola nueva** sobre la misma base `chinook`: **Consola 2 (Sesión B — Observador Externo)**.
-2. **Modo de Autocommit (`Tx: Auto` / `Tx: Manual`)**:
-   * Con `Tx: Auto` (autocommit activo por defecto en PostgreSQL), toda sentencia ejecutada *fuera* de un bloque transaccional se confirma individualmente. Sin embargo, al ejecutar explícitamente `BEGIN TRANSACTION ISOLATION LEVEL READ COMMITTED;`, PostgreSQL abre un bloque transaccional explícito y **suspende el autocommit** hasta que se ejecute `COMMIT;` o `ROLLBACK;`.
+   * En las propiedades del Data Source en DataGrip (*Options -> Single session mode*), asegúrese de que **Single session mode** esté **desmarcada** (valor por defecto) para que cada pestaña abra su propio backend en PostgreSQL.
+   * Abra dos consolas apuntando a **`chinook_serial.public`**: **`Sesion_A`** (Operador Transaccional) y **`Sesion_B`** (Observador Externo).
+   * En las pruebas ejecutadas, `pg_stat_activity` confirmó dos procesos backend independientes: **`PID 150`** (`Sesion_A`) y **`PID 152`** (`Sesion_B`).
+2. **Modo de Autocommit (`Tx: Auto`)**:
+   * En DataGrip, ambas consolas operan en modo **`Tx: Auto`** (autocommit activo por defecto fuera de bloques explícitos). Al ejecutar `BEGIN TRANSACTION ISOLATION LEVEL READ COMMITTED;`, PostgreSQL inicia un bloque transaccional explícito y **suspende la confirmación automática** hasta encontrar `COMMIT;` o `ROLLBACK;`.
 3. **Nivel de aislamiento (`Read Committed`)**:
-   * Todas las transacciones se abren con `BEGIN TRANSACTION ISOLATION LEVEL READ COMMITTED;`. Bajo este nivel, la **Sesión B** únicamente puede ver datos confirmados (`COMMIT`) antes del inicio de cada consulta `SELECT`, impidiendo lecturas sucias (*Dirty Reads*).
+   * Todas las transacciones se abren con `BEGIN TRANSACTION ISOLATION LEVEL READ COMMITTED;`. Bajo este nivel, cada sentencia `SELECT` de la **Sesión B** lee una instantánea consistente de los datos ya confirmados al inicio de la consulta, impidiendo lecturas sucias (*Dirty Reads*).
 
 ---
 
-## 4. Obtención dinámica de claves y manejo de errores en el cliente
+## 5. Obtención dinámica de claves y manejo de errores en el cliente
 
-1. **Recuperación de clave primaria sin adivinar IDs ni usar `MAX(id) + 1`**:
-   * Cada inserción de cabecera en `invoice` utiliza la cláusula `RETURNING invoice_id, customer_id, invoice_date, billing_address, total;` para devolver y mostrar inmediatamente el identificador generado por la secuencia `invoice_invoice_id_seq`.
-   * Las sentencias posteriores dentro de la misma **Sesión A** referencian dicho identificador de forma dinámica mediante `currval(pg_get_serial_sequence('invoice', 'invoice_id'))`, que devuelve el valor exacto recién asignado por `nextval()` en la sesión actual (incluso después de un `ROLLBACK`, ya que las secuencias no son transaccionales).
-   * En la **Sesión B** (`04_validaciones.sql`), se consulta dinámicamente `(SELECT last_value FROM invoice_invoice_id_seq)` para verificar la visibilidad de la factura en curso antes y después del `COMMIT` sin adivinar identificadores.
-2. **¿Qué bloque de recuperación ejecutar cuando DataGrip detiene el script al primer error?**:
-   * En **`02_rollback_total.sql`**: al ejecutar el `INSERT` con `track_id = 999999` (Paso 2.3), PostgreSQL devuelve el error `23503 (invoice_line_track_id_fkey)` y la transacción pasa a **estado abortado** (`25P02`). A continuación, seleccione y ejecute inmediatamente el **BLOQUE DE RECUPERACIÓN POST-ERROR (Paso 2.5)** que ejecuta `ROLLBACK;` y comprueba que para ese `invoice_id` quedaron `0` cabeceras y `0` detalles.
-   * En **`03_savepoint.sql`**: al ejecutar el `INSERT` con `track_id = 888888` (Paso 3.3), PostgreSQL devuelve el error `23503 (invoice_line_track_id_fkey)`. A continuación, seleccione y ejecute inmediatamente el **BLOQUE DE RECUPERACIÓN PARCIAL CON SAVEPOINT (Paso 3.4)** que inicia en `ROLLBACK TO SAVEPOINT sp_antes_detalle_riesgo;`, inserta el tercer detalle corregido (`track_id = 7`), libera el savepoint, recalcula el total (`4.95`) y confirma con `COMMIT;`.
-
----
-
-## 5. Orden de ejecución paso a paso
-
-1. **Escenario 1 y 4 (`01_venta_exitosa.sql` en Sesión A + `04_validaciones.sql` en Sesión B)**:
-   * En **Sesión A**, ejecute los **Pasos 1.1, 1.2, 1.3 y 1.4** (crea `invoice_id = 413`, inserta 3 detalles válidos y actualiza `total = 5.94`, deteniéndose **antes** de `COMMIT`).
-   * En **Sesión B**, ejecute el **Paso 4.1** (verifica PIDs distintos de A y B) y el **Paso 4.2** -> comprueba que `cabeceras_visibles_en_b = 0` y `detalles_visibles_en_b = 0` mientras A no ha confirmado.
-   * En **Sesión A**, ejecute el **Paso 1.5** (`COMMIT;` y consulta de factura confirmada).
-   * En **Sesión B**, repita el **Paso 4.2** -> comprueba que ahora `cabeceras_visibles_en_b = 1` (`total = 5.94`) y `detalles_visibles_en_b = 3`.
-2. **Escenario 2 (`02_rollback_total.sql` en Sesión A)**:
-   * Ejecute los **Pasos 2.1 y 2.2** (crea `invoice_id = 414` y 1 detalle válido con `track_id = 4`).
-   * Ejecute el **Paso 2.3** (provoca el error real de FK con `track_id = 999999`) y opcionalmente el **Paso 2.4** (muestra el error de transacción abortada `25P02`).
-   * Ejecute el **Paso 2.5** (`ROLLBACK;` y consulta de comprobación que demuestra `0` cabeceras y `0` detalles para `invoice_id = 414`).
-3. **Escenario 3 (`03_savepoint.sql` en Sesión A)**:
-   * Ejecute los **Pasos 3.1 y 3.2** (crea `invoice_id = 415`, inserta 2 detalles válidos `track_id IN (5, 6)` y crea `SAVEPOINT sp_antes_detalle_riesgo;`).
-   * Ejecute el **Paso 3.3** (provoca el error real de FK con `track_id = 888888`).
-   * Ejecute el **Paso 3.4** (`ROLLBACK TO SAVEPOINT sp_antes_detalle_riesgo;`, inserta detalle corregido `track_id = 7`, `RELEASE SAVEPOINT`, actualiza `total = 4.95`, `COMMIT;` y verifica los 3 detalles finales).
-4. **Auditoría final de huecos de secuencia (`04_validaciones.sql` en Sesión B)**:
-   * Ejecute los **Pasos 4.3 y 4.4** para evidenciar las facturas confirmadas (`413` y `415`) y los huecos dejados en las secuencias (`414` en `invoice`; `2244`, `2245` y `2248` en `invoice_line`).
+1. **Sin `MAX(id) + 1` ni IDs adivinados**:
+   * Cada inserción de cabecera en `invoice` emplea `RETURNING invoice_id, ...` para recuperar la clave primaria generada por `invoice_invoice_id_seq`.
+   * Las inserciones de detalle y actualizaciones dentro de la misma **Sesión A** referencian esa clave con `currval(pg_get_serial_sequence('invoice', 'invoice_id'))`.
+   * La **Sesión B** consulta `(SELECT last_value FROM invoice_invoice_id_seq)` para verificar visibilidad de la transacción en curso sin depender de valores escritos manualmente.
+2. **Bloques de recuperación cuando el cliente detiene el script al primer error**:
+   * En **`02_rollback_total.sql`**: al fallar el `INSERT` con `track_id = 999999` (`ERROR 23503: invoice_line_track_id_fkey`), la transacción entra en **estado abortado** (`25P02`). Ejecute inmediatamente el **PASO 2.5** (`ROLLBACK;` y `SELECT` de comprobación).
+   * En **`03_savepoint.sql`**: al fallar el `INSERT` con `track_id = 888888` (`ERROR 23503: invoice_line_track_id_fkey`), ejecute inmediatamente el **PASO 3.4** (`ROLLBACK TO SAVEPOINT sp_antes_detalle_riesgo;`, inserción del detalle corregido `track_id = 7`, `RELEASE SAVEPOINT`, recálculo de total y `COMMIT;`).
 
 ---
 
-## 6. Cómo reiniciar la base a su estado original para repetir las pruebas
+## 6. Orden de ejecución y resultados verificados
 
-Si desea repetir las pruebas desde cero para que los identificadores vuelvan a empezar exactamente en `invoice_id = 413` e `invoice_line_id = 2241`, ejecute en DataGrip:
+1. **Verificación de sesión y conexiones independientes**:
+   * Ejecutar `PASO 1.1` en `Sesion_A` (`PID 150`, `read committed`) y `PASO 4.1` en `Sesion_B` (`pg_stat_activity` mostrando `PID 150` y `PID 152`).
+2. **Escenario 1 (`01_venta_exitosa.sql`)**:
+   * `Sesion_A` abre transacción, inserta factura **`413`** con `RETURNING`, inserta 3 detalles (`2241..2243` para `track_id` 1, 2, 3), calcula `total = 5.94`, valida `coincide_exactamente = true`, confirma con `COMMIT;` y verifica desde `Sesion_B`.
+3. **Escenario 2 (`02_rollback_total.sql`)**:
+   * `Sesion_A` comprueba `track_id = 999999` (`0` filas), inicia venta **`414`** con 1 detalle válido (`2244`, `track_id = 4`), provoca error real FK `[23503]`, ejecuta `ROLLBACK;` y comprueba `cabeceras_encontradas = 0` y `detalles_encontrados = 0` para `414`.
+4. **Escenario 3 (`03_savepoint.sql`)**:
+   * `Sesion_A` inicia venta **`415`**, inserta 2 detalles válidos (`2246` y `2247`, `track_id` 5 y 6), crea `SAVEPOINT sp_antes_detalle_riesgo`, falla con `track_id = 888888` (`[23503]`), ejecuta `ROLLBACK TO SAVEPOINT`, inserta detalle corregido `track_id = 7` (`2249`), libera el punto, recalcula `total = 4.95` y confirma con `COMMIT`.
+5. **Escenario 4 y Auditoría de Secuencias (`04_validaciones.sql`)**:
+   * `Sesion_A` inicia venta **`416`** (`total_pendiente = 2.97`) sin `COMMIT`; `Sesion_B` consulta antes del `COMMIT` (`cabeceras_visibles_en_b = 0`, `detalles_visibles_en_b = 0`), `Sesion_A` ejecuta `COMMIT;` y `Sesion_B` repite la consulta (`cabeceras_visibles_en_b = 1`, `detalles_visibles_en_b = 3`, `total_visible_en_b = 2.97`).
+   * Auditoría final (`PASO 4.3` y `PASO 4.4`) demuestra los huecos de secuencia en `invoice` (`414`) y en `invoice_line` (`2244`, `2245` y `2248`).
+
+---
+
+## 7. Cómo reiniciar la base a su estado original para repetir las pruebas
 
 ```sql
 BEGIN;

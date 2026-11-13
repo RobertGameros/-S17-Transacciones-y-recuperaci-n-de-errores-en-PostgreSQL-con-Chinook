@@ -2,6 +2,10 @@
 .env
 *.env.local
 
+# Entregables de documento local (se suben por separado a Canvas)
+*.docx
+*.pdf
+
 # Archivos temporales y de sistema
 __pycache__/
 *.pyc
